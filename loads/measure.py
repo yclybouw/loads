@@ -78,7 +78,10 @@ class Session(_Session):
 
         # attach some information to the request object for later use.
         start = datetime.datetime.utcnow()
-        res = _Session.send(self, request, **kwargs)
+
+
+        res = self.add_future(_Session.send, self, request, **kwargs)
+
         res.started = start
         res.method = request.method
         self._analyse_request(res)

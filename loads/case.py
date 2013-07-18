@@ -55,11 +55,12 @@ class TestCase(unittest.TestCase):
         return ws
 
     def tearDown(self):
+        # Need to remove this, this uses gevent.
         for ws in self._ws:
             if ws._th.dead:
                 ws._th.get()  # re-raise any exception swallowed
 
-    def run(self, result=None, loads_status=None):
+    def run(self, result=None, loads_status=None, callback=None):
         if (loads_status is not None
                 and result is None
                 and not isinstance(self._test_result, TestResultProxy)):
@@ -68,7 +69,9 @@ class TestCase(unittest.TestCase):
         if loads_status is not None:
             self.session.loads_status = loads_status
 
-        return super(TestCase, self).run(result)
+        return_val = super(TestCase, self).run(result)
+        callback()
+        return return_val
 
 
 class TestResultProxy(object):

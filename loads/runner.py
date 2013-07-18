@@ -1,6 +1,8 @@
-import gevent
+import datetime
 
-from loads.util import resolve_name
+from tornado import ioloop, gen
+
+from loads.util import resolve_name, logger
 from loads.test_result import TestResult
 from loads.relay import ZMQRelay
 from loads.output import create_output
@@ -55,7 +57,9 @@ class Runner(object):
         self.test = resolve_name(self.fqn)
         self.slave = 'slave' in args
         self.outputs = []
-        self.stop = False
+        self._stopped = False
+
+        self.loop = ioloop.IOLoop()
 
         (self.total, self.cycles,
          self.duration, self.users, self.agents) = _compute_arguments(args)
@@ -83,89 +87,78 @@ class Runner(object):
         self.test_result.add_observer(output)
 
     def execute(self):
-        self.running = True
-        try:
-            self._execute()
-            if (not self.slave and
-                    self.test_result.nb_errors + self.test_result.nb_failures):
-                return 1
-            return 0
-        finally:
-            self.running = False
+        self.loop.add_callback(self._execute)
+        self.loop.start()
+        if (not self.slave and
+                self.test_result.nb_errors + self.test_result.nb_failures):
+            return 1
+        return 0
 
-    def _run(self, num, user):
-        # creating the test case instance
+    @gen.coroutine
+    def _execute(self):
+        """Spawn all the tests needed and wait for them to finish.
+        """
+        # Check that self.test is right before doing anything else.
+        if not hasattr(self.test, 'im_class'):
+            raise ValueError(self.test)
+
+        try:
+            worker_id = self.args.get('worker_id', None)
+
+            # Refresh the outputs every so often.
+            cb = ioloop.PeriodicCallback(self.refresh, 100, self.loop)
+            cb.start()
+
+            self.test_result.startTestRun(worker_id)
+
+            if self.duration is not None:
+                # Be sure to stop our loop after a certain time.
+                logger.info('Running the tests for %ss.' % self.duration)
+
+                duration_delta = datetime.timedelta(seconds=self.duration)
+                self.loop.add_timeout(duration_delta, self.stop)
+
+            runs = []
+            for user in self.users:
+                for i in range(user):
+                    runs.append((i, user))
+            from pdb import set_trace; set_trace()
+            yield [gen.Task(self._run_test, num, user) for (num, user) in runs]
+
+        except KeyboardInterrupt:
+            pass  # It's possible to stop the tests with ctrl-c.
+        finally:
+            self.stop()
+
+    @gen.coroutine
+    def _run_test(self, num, user, cycle=1):
+
+        # Create a test case instance for each virtual user.
         test = self.test.im_class(test_name=self.test.__name__,
                                   test_result=self.test_result,
                                   config=self.args)
 
-        if self.stop:
-            return
-
-        if self.duration is None:
+        if self.duration:
+            # We want to run tests until someone stop us.
+            test(loads_status=(0, user, cycle, num))
+            self.loop.add_callback(self._run_test, num, user, cycle + 1)
+        else:
+            tasks = []
             for cycle in self.cycles:
                 for current_cycle in range(cycle):
-                    loads_status = cycle, user, current_cycle + 1, num
-                    test(loads_status=loads_status)
-                    gevent.sleep(0)
-        else:
-            def spawn_test():
-                cycle = 0
-                while True:
-                    cycle = cycle + 1
-                    loads_status = 0, user, cycle, num
-                    test(loads_status=loads_status)
-                    gevent.sleep(0)
+                    tasks.append((cycle, user, current_cycle + 1, num))
 
-            spawned_test = gevent.spawn(spawn_test)
-            timer = gevent.Timeout(self.duration).start()
-            try:
-                spawned_test.join(timeout=timer)
-            except (gevent.Timeout, KeyboardInterrupt):
-                pass
+            yield [gen.Task(test, loads_status=t) for t in tasks]
 
-    def _execute(self):
-        """Spawn all the tests needed and wait for them to finish.
-        """
-        exception = None
-        try:
-            from gevent import monkey
-            monkey.patch_all()
-
-            if not hasattr(self.test, 'im_class'):
-                raise ValueError(self.test)
-
-            worker_id = self.args.get('worker_id', None)
-
-            gevent.spawn(self._grefresh)
-            self.test_result.startTestRun(worker_id)
-
-            for user in self.users:
-                if self.stop:
-                    break
-
-                group = [gevent.spawn(self._run, i, user)
-                         for i in range(user)]
-                gevent.joinall(group)
-
-            gevent.sleep(0)
-            self.test_result.stopTestRun(worker_id)
-        except KeyboardInterrupt:
-            pass
-        except Exception as e:
-            exception = e
-        finally:
-            # be sure we flush the outputs that need it.
-            # but do it only if we are in "normal" mode
-            try:
-                if not self.slave:
-                    self.flush()
-                else:
-                    # in slave mode, be sure to close the zmq relay.
-                    self.test_result.close()
-            finally:
-                if exception:
-                    raise exception
+    def stop(self):
+        if not self._stopped:
+            self.loop.stop()
+            if not self.slave:
+                self.flush()
+            else:
+                # in slave mode, be sure to close the zmq relay.
+                self.test_result.close()
+            self._stopped = True
 
     def flush(self):
         for output in self.outputs:
@@ -176,8 +169,3 @@ class Runner(object):
         for output in self.outputs:
             if hasattr(output, 'refresh'):
                 output.refresh()
-
-    def _grefresh(self):
-        self.refresh()
-        if not self.stop:
-            gevent.spawn_later(.1, self._grefresh)
