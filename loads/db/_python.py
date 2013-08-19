@@ -32,6 +32,12 @@ class BrokerDB(BaseDB):
         self._dirty = False
         self._metadata = defaultdict(dict)
 
+    def update_metadata(self, run_id, **metadata):
+        existing = self._metadata.get(run_id, {})
+        existing.update(metadata)
+        self._dirty = True
+        self._metadata[run_id] = existing
+
     def save_metadata(self, run_id, metadata):
         self._metadata[run_id] = metadata
         self._dirty = True
@@ -76,7 +82,7 @@ class BrokerDB(BaseDB):
             if run_id is None:
                 run_id = 'unknown'
 
-            filename = os.path.join(self.directory, run_id)
+            filename = os.path.join(self.directory, run_id + '-db.json')
 
             with open(filename, 'a+') as f:
                 for i in range(qsize):
@@ -105,9 +111,14 @@ class BrokerDB(BaseDB):
         with open(filename) as f:
             return json.load(f)
 
+    def get_runs(self):
+        return set([path[:-len('-db.json')]
+                    for path in os.listdir(self.directory)
+                    if path.endswith('-db.json')])
+
     def get_data(self, run_id, data_type=None, groupby=False):
         self.flush()
-        filename = os.path.join(self.directory, run_id)
+        filename = os.path.join(self.directory, run_id + '-db.json')
 
         if not os.path.exists(filename):
             raise StopIteration()

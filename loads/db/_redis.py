@@ -25,11 +25,19 @@ class RedisDB(BaseDB):
     #
     def save_metadata(self, run_id, metadata):
         key = 'metadata:%s' % run_id
-        self._redis.set(key, loads(metadata))
+        self._redis.set(key, dumps(metadata))
+
+    def update_metadata(self, run_id, **metadata):
+        existing = self.get_metadata(run_id)
+        existing.update(metadata)
+        self.save_metadata(run_id, existing)
 
     def get_metadata(self, run_id):
         key = 'metadata:%s' % run_id
-        return loads(self._redis.get(key))
+        metadata = self._redis.get(key)
+        if metadata is None:
+            return {}
+        return loads(metadata)
 
     def add(self, data):
         if 'run_id' not in data:
@@ -45,7 +53,7 @@ class RedisDB(BaseDB):
         size = data['size']
 
         pipeline = self._redis.pipeline()
-
+        pipeline.sadd('runs', run_id)
         counter = 'count:%s:%s' % (run_id, data_type)
         counters = 'counters:%s' % run_id
         if not self._redis.sismember(counters, counter):
@@ -79,6 +87,9 @@ class RedisDB(BaseDB):
             name = member.split(':')[-1]
             counts[name] = int(self._redis.get(member))
         return counts
+
+    def get_runs(self):
+        return self._redis.smembers('runs')
 
     def get_data(self, run_id, data_type=None, groupby=False):
         key = 'data:%s' % run_id

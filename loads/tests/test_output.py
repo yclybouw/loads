@@ -4,7 +4,10 @@ import mock
 import shutil
 import sys
 import tempfile
-import unittest
+
+from unittest2 import TestCase
+from mock import patch
+from pytz import timezone
 
 from mock import patch
 
@@ -17,7 +20,12 @@ from loads.tests.support import get_tb, hush
 from loads.test_result import Hit, Test
 
 
+<<<<<<< HEAD
 TIME1 = datetime.datetime(2013, 5, 14, 0, 51, 8)
+=======
+TIME1 = datetime.datetime(2013, 5, 14, 0, 51, 8,
+                          tzinfo=timezone('Europe/Paris'))
+>>>>>>> 705e790c5b22f3d8e3e6bc6b1c1e39c51fb112af
 _1 = datetime.timedelta(seconds=1)
 
 
@@ -49,7 +57,7 @@ class FakeOutput(object):
         self.test_result = test_result
 
 
-class TestStdOutput(unittest.TestCase):
+class TestStdOutput(TestCase):
 
     def test_std(self):
         old = sys.stdout
@@ -109,7 +117,7 @@ class TestStdOutput(unittest.TestCase):
         self.assertEquals(output.std.get_screen_relative_value(23, 80), 10)
 
 
-class TestNullOutput(unittest.TestCase):
+class TestNullOutput(TestCase):
 
     def test_api_works(self):
         output = NullOutput(mock.sentinel.test_result, mock.sentinel.args)
@@ -117,7 +125,7 @@ class TestNullOutput(unittest.TestCase):
         output.flush()
 
 
-class TestFileOutput(unittest.TestCase):
+class TestFileOutput(TestCase):
 
     def test_file_is_written(self):
         tmpdir = tempfile.mkdtemp()
@@ -134,7 +142,11 @@ class TestFileOutput(unittest.TestCase):
             shutil.rmtree(tmpdir)
 
 
+<<<<<<< HEAD
 class TestFunkloadOutput(unittest.TestCase):
+=======
+class TestFunkloadOutput(TestCase):
+>>>>>>> 705e790c5b22f3d8e3e6bc6b1c1e39c51fb112af
 
     @patch('loads.output._funkload.print_tb', lambda x, file: file.write(x))
     def test_file_is_written(self):
@@ -171,6 +183,7 @@ class TestFunkloadOutput(unittest.TestCase):
 
             with open('%s/funkload.xml' % tmpdir) as f:
                 content = f.read()
+<<<<<<< HEAD
                 hit = ('<response cycle="000" cvus="2" thread="000" '
                        'suite="" name="" step="001" number="001" type="GET" '
                        'result="Successful" url="http://notmyidea.org" '
@@ -192,12 +205,42 @@ class TestFunkloadOutput(unittest.TestCase):
                         'xmlrpc="" redirects="" images="" links="" '
                         'traceback="youpi yeah" />')
                 self.assertTrue(test in content)
+=======
+                test = (('<response cycle="000" cvus="2" thread="000" '
+                         'suite="" name="" step="001" number="001" type="GET" '
+                         'result="Successful" url="http://notmyidea.org" '
+                         'code="200" description="" time="'),
+                        ('" duration="1.0" />'))
+                for t in test:
+                    self.assertIn(t, content)
+
+                test = (('<testResult cycle="000" cvus="1" thread="000" '
+                         'suite="" name="" time="'),
+                        ('" result="Success" steps="1" duration="0" '
+                         'connection_duration="" requests="" pages="" '
+                         'xmlrpc="" redirects="" images="" links="" />'))
+                for t in test:
+                    self.assertIn(t, content)
+
+                test = (('<testResult cycle="000" cvus="1" thread="000" '
+                         'suite="" name="" time="'),
+                        ('result="Failure" steps="1" duration="0" '
+                         'connection_duration="" requests="" pages="" '
+                         'xmlrpc="" redirects="" images="" links="" '
+                         'traceback="youpi yeah" />'))
+                for t in test:
+                    self.assertIn(t, content)
+>>>>>>> 705e790c5b22f3d8e3e6bc6b1c1e39c51fb112af
 
         finally:
             shutil.rmtree(tmpdir)
 
 
+<<<<<<< HEAD
 class TestOutputPlugins(unittest.TestCase):
+=======
+class TestOutputPlugins(TestCase):
+>>>>>>> 705e790c5b22f3d8e3e6bc6b1c1e39c51fb112af
 
     def test_unexistant_output_raises_exception(self):
         self.assertRaises(NotImplementedError, create_output, 'xxx', None,

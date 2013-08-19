@@ -1,4 +1,5 @@
 nose
+nose-cov
 circus
 flake8
 paramiko
@@ -6,5 +7,6 @@ boto
 mock
 unittest2
 cython
+pytz==2013b
 https://github.com/Lawouach/WebSocket-for-Python/archive/v0.3.0-beta.tar.gz
 https://github.com/surfly/gevent/archive/1.0rc2.tar.gz
