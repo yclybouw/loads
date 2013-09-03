@@ -13,9 +13,7 @@ services:
   - redis-server
 notifications:
     email:
-        - tarek@mozilla.com
-        - alexis@mozilla.com
-    irc: "irc.mozilla.org#services-dev"
+        - yannick@awingu.com
     on_success: change
 after_success:
   # Report coverage results to coveralls.io
